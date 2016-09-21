@@ -44,8 +44,6 @@ install:
   - sudo tar -xvf go1.6.linux-amd64.tar.gz
   - sudo mv go /usr/local/
   - export PATH=$PATH:/usr/local/go/bin
-  - export GOPATH=`pwd`/src/generator/AutoRest.Go.Tests
-  - sudo chmod -R 777 `echo $GOPATH`
   - sudo apt-get install git -y
   - sudo add-apt-repository ppa:masterminds/glide -y && sudo apt-get update
   - sudo apt-get install glide

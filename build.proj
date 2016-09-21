@@ -16,16 +16,8 @@
     Publishes the built packages. You will need to include your
     publishing key when running. Include: /p:NuGetKey=YOUR_PUBLISHING_KEY
 
-  /t:CodeAnalysis
-    Run Code analysis.
-
   Properties of interest:
-  /p:Scope
-    'All' : builds ClientRuntime and CodeGenerator solutions
-    'CodeGenerator': builds CodeGenerator solution only
-    'ClientRuntime': builds ClientRuntime solution only
-    By default, it builds all.
-
+  
   /P:CodeSign=True
     Code sign binaries, mainly for official release
 
@@ -64,7 +56,6 @@
     
     <!-- Only set set this to true for testing the code sign workflow locally. -->
     <DelaySign Condition =" '$(DelaySign)' == '' ">false</DelaySign>
-    <Scope Condition=" '$(Scope)' == '' ">all</Scope>
     <ZipExeFolder>$(LibraryToolsFolder)\7-Zip</ZipExeFolder>
     <ZipExe>$(ZipExeFolder)\7z.exe</ZipExe>
 
@@ -89,8 +80,6 @@
     <OnPremiseBuild Condition=" Exists('$(OnPremiseBuildTasks)') ">true</OnPremiseBuild>
     <OnPremiseBuild Condition=" ! Exists('$(OnPremiseBuildTasks)') ">false</OnPremiseBuild>
     
-    <CanPublish Condition="'$(Scope)' == 'CodeGenerator'">true</CanPublish>
-    <CanPublish Condition="'$(Scope)' == 'ClientRuntime'">true</CanPublish>
     <CanPublish Condition="'$(CanPublish)' == ''">false</CanPublish>
  
     <!-- NuGet command line -->
@@ -109,16 +98,11 @@
   </PropertyGroup>
   
   <!-- ClientRuntime projects that can be built into packages -->
-  <ItemGroup Condition="'$(Scope)' == 'ClientRuntime' OR '$(Scope)' == 'all'"> 
+  <ItemGroup> 
     <PackageableLibraries Include="src/client/*/project.json" Exclude="src/client/*.Tests/project.json;src/client/*.Etw/project.json"  Condition=" '$(OS)' == 'Windows_NT'"/>
     <PackageableLibraries Include="src/client/*/project.json" Exclude="src/client/*.Tests/project.json;src/client/*.Etw/project.json;src/client/*.Log4Net/project.json"  Condition=" '$(OS)' != 'Windows_NT'"/>
   </ItemGroup>
   
-  <!-- CodeGenerator projects that can be built into packages -->
-  <ItemGroup Condition="'$(Scope)' == 'CodeGenerator' OR '$(Scope)' == 'all'"> 
-    <PackageableLibraries Include="$(LibraryRoot)/src/core/AutoRest/project.json" />
-  </ItemGroup>
-    
   <!-- .xproj files (used for clean and razor compile tasks -->
   <ItemGroup>
     <XProjFiles Include="src/**/*.xproj" />
@@ -137,15 +121,9 @@
   
   <!-- Publishing uploads the packages to the nuget server -->
   <Target Name="Publish"  DependsOnTargets="Package" Condition="'$(Configuration)' == 'Release'" >
-    <Error Condition=" $(CanPublish) == false " Text="Do not attempt to publish both the ClientRuntime and the CodeGenerator at the same time. You must specify /p:Scope=CodeGenerator or /p:Scope=ClientRuntime" />
     <Error Condition=" '$(NuGetKey)' == '' " Text="You must provide the NuGetKey parameter to the build: /p:NuGetKey=YOUR_PUBLISHING_KEY" />
     
-    <ItemGroup Condition="'$(Scope)' == 'CodeGenerator'">
-      <NugetPackagesToPublish Include="$(PackageOutputDir)\*.nupkg" Exclude="src\core\AutoRest\**\*.symbols.nupkg"/>
-      <SymbolPackagesToPublish Include="src\core\AutoRest\**\*.symbols.nupkg"/>
-    </ItemGroup>
-    
-    <ItemGroup Condition="'$(Scope)' == 'ClientRuntime'">
+    <ItemGroup>
       <NugetPackagesToPublish Include="$(PackageOutputDir)\*.nupkg" Exclude="src\client\**\*.symbols.nupkg"/>
       <SymbolPackagesToPublish Include="src\client\**\*.symbols.nupkg"/>
     </ItemGroup>
@@ -197,11 +175,6 @@
   <Target Name="Clean">
     <Message Text="Individually: %(XProjFiles.Identity)" Importance="High" />
     <Message Text="All: @(XProjFiles)" Importance="High" />
-
-   <MSBuild Projects="%(XProjFiles.Identity)"
-             Properties="Configuration=$(Configuration);Platform=Any CPU"
-             Targets="Clean"
-             Condition=" '$(Scope)' == 'all' or '$(Scope)' == 'CodeGenerator'" />
     <RemoveDir Directories="$(BinariesFolder)" />
     <RemoveDir Directories="$(TestResultsFolder)" />
     <MakeDir Directories="$(BinariesFolder)" />
@@ -226,11 +199,7 @@
     <Error Condition=" !$(OnPremiseBuild) and !$(DelaySign) " Text="No CI tools path available, the code sign will be unable to continue. $(CIToolsPath)" />
     <Message Text="Code signing" Importance="high" />
     
-    <ItemGroup Condition="'$(Scope)' == 'CodeGenerator'">
-      <PackagesToSign Include="src\core\AutoRest\**\*.nupkg" Exclude="src\core\AutoRest\**\*.symbols.nupkg"/>
-    </ItemGroup>
-    
-    <ItemGroup Condition="'$(Scope)' == 'ClientRuntime'">
+    <ItemGroup>
       <PackagesToSign Include="src\client\**\*.nupkg" Exclude="src\client\**\*.symbols.nupkg"/>
     </ItemGroup>
     

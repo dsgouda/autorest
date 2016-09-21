@@ -1,6 +1,5 @@
 ## Ignore generated code 
 PackageTest/NugetPackageTest/Generated
-src/generator/AutoRest.NodeJS.Tests/AcceptanceTests/*.js
 
 ## Ignore user-specific files, temporary files, build results, etc.
 AutoRest/**/Templates/*.cs
@@ -177,8 +176,6 @@ Thumbs.db
 
 #old nuget restore folder
 .nuget/
-src/generator/AutoRest.Ruby*Tests/Gemfile.lock
-src/generator/AutoRest.Ruby*/*/RspecTests/Generated/*
 
 #netcore 
 /NetCore
@@ -191,13 +188,3 @@ dnx-coreclr-win-x86*/
 
 # Gemfile.lock
 Gemfile.lock
-
-# go ignore
-src/generator/AutoRest.Go.Tests/pkg/*
-src/generator/AutoRest.Go.Tests/bin/*
-src/generator/AutoRest.Go.Tests/src/github.com/*
-src/generator/AutoRest.Go.Tests/src/test/vendor/*
-src/generator/AutoRest.Go.Tests/src/test/generated/*
-src/generator/AutoRest.Go.Tests/src/tests/generated/*
-src/generator/AutoRest.Go.Tests/src/tests/vendor/*
-src/generator/AutoRest.Go.Tests/src/tests/glide.lock

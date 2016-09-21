@@ -1,10 +1,6 @@
 {
   "projects": [
-    "src/client",
-    "src/generator",
-    "src/modeler",
-    "src/core",
-    "src/dev"
+    "src/client"
   ],
    "sdk": {
     "version": "1.0.0-preview2-003121"
