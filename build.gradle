@@ -54,7 +54,7 @@ project(':azure-android-client-authentication') {
         compile project(':azure-client-runtime')
     }
 }
-
+/*
 project(':codegen-tests') {
     apply plugin: 'java'
     sourceCompatibility = 1.7
@@ -83,3 +83,4 @@ project(':azure-fluent-codegen-tests') {
         compile project(':azure-client-runtime')
     }
 }
+*/

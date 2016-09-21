@@ -24,20 +24,6 @@ Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Microsoft.Rest.ClientRuntim
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "Microsoft.Rest.ClientRuntime.Azure.Authentication", "src\client\Microsoft.Rest.ClientRuntime.Azure.Authentication\Microsoft.Rest.ClientRuntime.Azure.Authentication.xproj", "{6319205D-BBFC-4150-BEAE-31B1C9B911DD}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.CSharp.Tests", "src\generator\AutoRest.CSharp.Tests\AutoRest.CSharp.Tests.xproj", "{784D4B45-F12A-4B8F-A86C-35A080814A19}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.CSharp.Azure.Tests", "src\generator\AutoRest.CSharp.Azure.Tests\AutoRest.CSharp.Azure.Tests.xproj", "{43DFEF27-2FD7-4827-A669-DFD2DD1CBBCC}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GeneratorTests", "GeneratorTests", "{0B59BFFC-587F-4E08-987C-82CCB57426B1}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.Core", "src\core\AutoRest.Core\AutoRest.Core.xproj", "{C876085F-9DC3-41F0-B7B4-17022CD84684}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.CSharp", "src\generator\AutoRest.CSharp\AutoRest.CSharp.xproj", "{CC1EEC95-41EF-44B6-8761-00FA3E647248}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.Extensions", "src\core\AutoRest.Extensions\AutoRest.Extensions.xproj", "{7DD043EB-5E53-4180-B123-CC3CC5022E34}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "AutoRest.Swagger", "src\modeler\AutoRest.Swagger\AutoRest.Swagger.xproj", "{9517265E-5127-460C-9DDE-FE017D73121C}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
