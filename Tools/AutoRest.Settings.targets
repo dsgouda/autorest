@@ -133,6 +133,7 @@
     <Exec Command="$(RazorCommand) &quot;$(MSBuildProjectDirectory)\Templates\Rest\Client&quot; $(RootNamespace).Templates.Client" />
     <Exec Command="$(RazorCommand) &quot;$(MSBuildProjectDirectory)\Templates\Rest\Common&quot; $(RootNamespace).Templates.Common" />
     <Exec Command="$(RazorCommand) &quot;$(MSBuildProjectDirectory)\Templates\Rest\Server&quot; $(RootNamespace).Templates.Server" />
+    <Exec Command="$(RazorCommand) &quot;$(MSBuildProjectDirectory)\Templates\JsonRpc\Plugin&quot; $(RootNamespace).Templates.JsonRpc.Plugin" />
   </Target>
 
   <Target Name="TurnOffCodeAnalysis">

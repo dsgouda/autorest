@@ -13,6 +13,7 @@ using AutoRest.Core.Utilities;
 using AutoRest.CSharp.Model;
 using AutoRest.CSharp.Templates.Rest.Client;
 using AutoRest.CSharp.Templates.Rest.Common;
+using AutoRest.CSharp.Templates.JsonRpc.Plugin;
 using static AutoRest.Core.Utilities.DependencyInjection;
 using AutoRest.Extensions;
 
@@ -30,7 +31,7 @@ namespace AutoRest.CSharp
 
         public override string ImplementationFileExtension => ".cs";
 
-        private async Task GenerateServerSideCode(CodeModelCs codeModel)
+        private async Task GenerateRestServerSideCode(CodeModelCs codeModel)
         {
             foreach (string methodGrp in codeModel.MethodGroupNames)
             {
@@ -50,7 +51,7 @@ namespace AutoRest.CSharp
             }
         }
 
-        private async Task GenerateClientSideCode(CodeModelCs codeModel)
+        private async Task GenerateRestClientSideCode(CodeModelCs codeModel)
         {
             // Service client
             var serviceClientTemplate = new ServiceClientTemplate { Model = codeModel };
@@ -111,23 +112,47 @@ namespace AutoRest.CSharp
         {
             if (Settings.Instance.CodeGenerationMode.IsNullOrEmpty() || Settings.Instance.CodeGenerationMode.EqualsIgnoreCase("rest-client"))
             {
-                Logger.Instance.Log(Category.Info, "Defaulting to generate client side Code");
-                await GenerateClientSideCode(codeModel);
-            } 
+                Logger.Instance.Log(Category.Info, "Defaulting to generate client side code");
+                await GenerateRestClientSideCode(codeModel);
+            }
             else if (Settings.Instance.CodeGenerationMode.EqualsIgnoreCase("rest"))
             {
-                Logger.Instance.Log(Category.Info, "Generating client side Code");
-                await GenerateClientSideCode(codeModel);
-                Logger.Instance.Log(Category.Info, "Generating server side Code");
-                await GenerateServerSideCode(codeModel);
+                Logger.Instance.Log(Category.Info, "Generating client side code");
+                await GenerateRestClientSideCode(codeModel);
+                Logger.Instance.Log(Category.Info, "Generating server side code");
+                await GenerateRestServerSideCode(codeModel);
             }
             else if (Settings.Instance.CodeGenerationMode.EqualsIgnoreCase("rest-server"))
             {
-                Logger.Instance.Log(Category.Info, "Generating server side Code");
-                await GenerateServerSideCode(codeModel);
+                Logger.Instance.Log(Category.Info, "Generating server side code");
+                await GenerateRestServerSideCode(codeModel);
             }
-
+            
         }
+
+
+        private async Task GenerateJsonRpcPluginCode(CodeModelCs codeModel)
+        {
+
+            // for each plugin path generate a controller that can handle a request, this should be
+            // similar to generating a rest server for the given spec
+            foreach (string methodGrp in codeModel.MethodGroupNames)
+            {
+                using (NewContext)
+                {
+                    codeModel.Name = methodGrp;
+                    var serviceControllerTemplate = new AutoRest.CSharp.Templates.JsonRpc.Plugin.PluginControllerTemplate { Model = codeModel };
+                    await Write(serviceControllerTemplate, $"{codeModel.Name}{ImplementationFileExtension}");
+                }
+            }
+            // Models
+            foreach (CompositeTypeCs model in codeModel.ModelTypes.Union(codeModel.HeaderTypes))
+            {
+                var modelTemplate = new ModelTemplate { Model = model };
+                await Write(modelTemplate, Path.Combine(Settings.Instance.ModelsName, $"{model.Name}{ImplementationFileExtension}"));
+            }
+        }
+
 
         /// <summary>
         /// Generates C# code for service client.
@@ -146,6 +171,11 @@ namespace AutoRest.CSharp
             {
                 Logger.Instance.Log(Category.Info, "Generating Rest Code");
                 await GenerateRestCode(codeModel);
+            }
+            else if (Settings.Instance.CodeGenerationMode.EqualsIgnoreCase("jsonrpc-plugin"))
+            {
+                Logger.Instance.Log(Category.Info, "Generating json rpc plugin code");
+                await GenerateJsonRpcPluginCode(codeModel);
             }
             else
             {
