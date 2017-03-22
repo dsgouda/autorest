@@ -692,15 +692,6 @@ namespace AutoRest.Core.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Tracked resource &apos;{0}&apos; must have a get operation..
-        /// </summary>
-        public static string TrackedResourceGetOperationMissing {
-            get {
-                return ResourceManager.GetString("TrackedResourceGetOperationMissing", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Tracked Resource failing validation is: &quot;{0}&quot;. Validation Failed: {1}.
         ///    A Tracked Resource must have: 
         ///    1. A Get Operation 
