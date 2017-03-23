@@ -546,6 +546,22 @@ namespace AutoRest.Swagger.Tests
         }
 
         /// <summary>
+        /// Verifies resource models are correctly identified
+        /// </summary>
+        [Fact]
+        public void ValidResourceModels()
+        {
+            var filePath = Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "positive", "valid-resource-model-definitions.json");
+            var fileText = System.IO.File.ReadAllText(filePath);
+            var servDef = SwaggerParser.Parse(filePath, fileText);
+            var context = new RuleContext(servDef, new Uri(filePath));
+            Assert.Equal(4, context.ResourceModels.Count());
+            Assert.Equal(1, context.TrackedResourceModels.Count());
+            Assert.Equal(3, context.ProxyResourceModels.Count());
+        }
+        
+
+        /// <summary>
         /// Verifies that sku object
         /// </summary>
         [Fact]
@@ -554,7 +570,6 @@ namespace AutoRest.Swagger.Tests
             var messages = ValidateSwagger(Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "positive", "swagger-skumodel-validation-valid.json"));
             messages.AssertOnlyValidationMessage(typeof(SkuModelValidation), 0);
         }
-
     }
 
     #endregion
