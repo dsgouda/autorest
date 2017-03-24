@@ -18,8 +18,10 @@ namespace AutoRest.Swagger.Model.Utilities
         private static readonly IEnumerable<string> baseResourceModelNames = 
             new List<string>() { "trackedresource", "proxyresource", "resource" };
 
-        public enum PropertyListType { Properties, RequiredProperties, ReadOnlyProperties };
+        private static readonly Regex TrackedResRegEx = new Regex(@".+/Resource$", RegexOptions.IgnoreCase);
+        
 
+        // This needs to be deprecated in favor of context.TrackedResources
         public static bool IsTrackedResource(Schema schema, Dictionary<string, Schema> definitions)
         {
             if (schema.AllOf != null)
@@ -54,11 +56,11 @@ namespace AutoRest.Swagger.Model.Utilities
             var xmsAzureResourceModels = GetXmsAzureResourceModels(serviceDefinition.Definitions);
 
             // Get all models that are returned by PUT operations (200/201 response)
-            var putOperationsResponseModels = GetOperationResponseModels("put", serviceDefinition).Except(xmsAzureResourceModels);
-            putOperationsResponseModels = putOperationsResponseModels.Union(GetOperationResponseModels("put", serviceDefinition, "201").Except(xmsAzureResourceModels));
+            var putOperationsResponseModels = GetOperationResponseModels("put", serviceDefinition);
+            putOperationsResponseModels = putOperationsResponseModels.Union(GetOperationResponseModels("put", serviceDefinition, "201"));
 
             // Get all models that 'allOf' on models that are named 'Resource' and are returned by any GET operation
-            var getOperationsResponseModels = GetOperationResponseModels("get", serviceDefinition).Except(xmsAzureResourceModels);
+            var getOperationsResponseModels = GetOperationResponseModels("get", serviceDefinition);
 
             getOperationsResponseModels =
                 getOperationsResponseModels.Where(modelName => serviceDefinition.Definitions.ContainsKey(modelName))
@@ -79,9 +81,10 @@ namespace AutoRest.Swagger.Model.Utilities
         }
 
         /// <summary>
-        /// Returns the cumulative list of all 'allOfed' references for a model
+        /// checks if a model is a base resource type (resource, trackedresource or proxyresource)
         /// </summary>
         /// <param name="modelName">model name to check</param>
+        /// <returns> true if model is a base resource type </returns>
         public static bool IsBaseResourceModelName(string modelName) => baseResourceModelNames.Contains(modelName.ToLower());
 
         /// <summary>
@@ -90,26 +93,19 @@ namespace AutoRest.Swagger.Model.Utilities
         /// <param name="modelName">model for which to determine the model hierarchy</param>
         /// <param name="definitions">dictionary of model definitions</param>
         /// <param name="propertyList">List of 'allOfed' models</param>
-        public static IEnumerable<string> EnumerateModelHierarchy(string modelName, Dictionary<string, Schema> definitions, IEnumerable<string> modelHierarchy = null)
+        public static IEnumerable<string> EnumerateModelHierarchy(string modelName, Dictionary<string, Schema> definitions)
         {
-            if (modelHierarchy == null)
-            {
-                modelHierarchy = new List<string>() { modelName };
-            }
+            if (!definitions.ContainsKey(modelName)) return new List<string>();
 
-            if (!definitions.ContainsKey(modelName)) return modelHierarchy;
+            IEnumerable<string> modelHierarchy = new List<string>() { modelName };
 
+            // If schema has no allOfs, return 
             var modelSchema = definitions[modelName];
             if (modelSchema.AllOf?.Any() != true) return modelHierarchy;
 
+            // for each allOf in the schema, recursively pick the models
             var allOfs = modelSchema.AllOf.Select(allOfSchema => allOfSchema.Reference?.StripDefinitionPath()).Where(modelRef => !string.IsNullOrEmpty(modelRef));
-            modelHierarchy = modelHierarchy.Union(allOfs);
-            
-            foreach (var allOf in allOfs)
-            {
-                modelHierarchy = modelHierarchy.Union(EnumerateModelHierarchy(allOf, definitions, modelHierarchy));
-            }
-            return modelHierarchy;
+            return modelHierarchy.Union(allOfs.SelectMany(allOf => EnumerateModelHierarchy(allOf, definitions))).ToList();
         }
 
         /// <summary>
@@ -144,8 +140,8 @@ namespace AutoRest.Swagger.Model.Utilities
             foreach (var modelRef in modelsToCheck)
             {
                 if (!definitions.ContainsKey(modelRef) || definitions[modelRef].Properties?.Any() != true) continue;
-
-                propertiesList = propertiesList.Union(definitions[modelRef].Required.Where(reqProp=>!string.IsNullOrEmpty(reqProp))).ToList();
+                
+                propertiesList = propertiesList.Union(definitions[modelRef].Required.Where(reqProp => !string.IsNullOrEmpty(reqProp))).ToList();
             }
             return propertiesList;
         }
@@ -157,17 +153,7 @@ namespace AutoRest.Swagger.Model.Utilities
         /// <param name="definitions">dictionary of model definitions</param>
         /// <param name="propertyList">List of read only properties found in model hierarchy</param>
         private static IEnumerable<string> EnumerateReadOnlyProperties(string modelName, Dictionary<string, Schema> definitions)
-        {
-            var modelsToCheck = EnumerateModelHierarchy(modelName, definitions);
-            var propertiesList = new List<string>();
-            foreach (var modelRef in modelsToCheck)
-            {
-                if (!definitions.ContainsKey(modelRef) || definitions[modelRef].Properties?.Any() != true) continue;
-
-                propertiesList = propertiesList.Union(definitions[modelRef].Properties.Where(prop=>prop.Value.ReadOnly == true ).Select(prop=>prop.Key)).ToList();
-            }
-            return propertiesList;
-        }
+            => EnumerateProperties(modelName, definitions).Where(prop => prop.Value.ReadOnly).Select(prop => prop.Key);
 
 
         /// <summary>
@@ -271,15 +257,21 @@ namespace AutoRest.Swagger.Model.Utilities
             => resourceModels.Where(resModel => ContainsRequiredProperties(resModel, definitions, new List<string>() { "location" }));
 
 
-        // determine if an operation is xms pageable operation
-        public static bool IsXmsPageableOperation(Operation op)
-        {
-            // if xmspageable type, return true
-            return (op.Extensions.GetValue<object>(XmsPageable) != null);
-        }
+        /// <summary>
+        /// Determines if an operation is xms pageable operation
+        /// </summary>
+        /// <param name="op">Operation for which to check the x-ms-pageable extension</param>
+        /// <returns>true if operation is x-ms-pageable</returns>
+        public static bool IsXmsPageableResponseOperation(Operation op) => (op.Extensions.GetValue<object>(XmsPageable) != null);
 
-        // determine if an operation returns an object of array type
-        public static bool IsArrayResponseOperation(Operation op, ServiceDefinition entity)
+
+        /// <summary>
+        /// Determines if an operation returns an object of array type
+        /// </summary>
+        /// <param name="op">Operation for which to check the x-ms-pageable extension</param>
+        /// <param name="serviceDefinition">Service definition that contains the operation</param>
+        /// <returns>true if operation returns an array type</returns>
+        public static bool IsArrayTypeResponseOperation(Operation op, ServiceDefinition entity)
         {
             // if a success response is not defined, we have nothing to check, return false
             if (op.Responses?.ContainsKey("200") != true) return false;
@@ -310,17 +302,6 @@ namespace AutoRest.Swagger.Model.Utilities
             return false;
         }
 
-        // determine if the operation is xms pageable or returns an object of array type
-        public static bool IsXmsPageableOrArrayResponseOperation(Operation op, ServiceDefinition entity)
-        {
-            if (IsXmsPageableOperation(op) || IsArrayResponseOperation(op, entity))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
         /// <summary>
         /// Returns all operations that match the httpverb (from all paths in service definitions)
         /// </summary>
@@ -338,6 +319,10 @@ namespace AutoRest.Swagger.Model.Utilities
             return pathOperations;
         }
 
+
+        public static bool IsXmsPageableOrArrayTypeResponseOperation(Operation op, ServiceDefinition entity) => 
+            (IsXmsPageableResponseOperation(op) || IsArrayTypeResponseOperation(op, entity));
+        
         /// <summary>
         /// Returns all operations that match the httpverb
         /// </summary>
@@ -387,11 +372,6 @@ namespace AutoRest.Swagger.Model.Utilities
                 }
             }
             return sb.ToString();
-        }
-
-        public static IEnumerable<KeyValuePair<string, Schema>> GetArmResources(ServiceDefinition serviceDefinition)
-        {
-            return serviceDefinition.Definitions.Where(defPair=> defPair.Value.Extensions?.ContainsKey("x-ms-azure-resource")==true && (bool?)defPair.Value.Extensions["x-ms-azure-resource"] == true);
         }
 
         /// <summary>
