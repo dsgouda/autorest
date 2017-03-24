@@ -38,7 +38,7 @@ namespace AutoRest.Swagger.Validation
         public override Category Severity => Category.Error;
 
         private static readonly IEnumerable<string> ArmPropertiesBag = new List<string>()
-                                                                        { "name", "id", "type", "location" };
+                                                                        { "name", "id", "type", "location", "tag" };
 
         // Verifies if a tracked resource has a corresponding get operation
         public override IEnumerable<ValidationMessage> GetValidationMessages(Dictionary<string, Schema> definitions, RuleContext context)
