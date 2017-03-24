@@ -220,6 +220,13 @@ namespace AutoRest.Swagger.Tests
         }
 
         [Fact]
+        public void ArmResourcePropertiesBagValidation()
+        {
+            var messages = ValidateSwagger(Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "arm-resource-properties-bag.json"));
+            messages.AssertOnlyValidationMessage(typeof(ArmResourcePropertiesBag), 1);
+        }
+
+        [Fact]
         public void CollectionObjectsPropertiesNamingValidation()
         {
             var messages = ValidateSwagger(Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "collection-objects-naming.json"));
@@ -548,6 +555,14 @@ namespace AutoRest.Swagger.Tests
             var messages = ValidateSwagger(Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "positive", "operations-valid-parameters.json"));
             messages.AssertOnlyValidationMessage(typeof(OperationParametersValidation), 0);
         }
+
+        [Fact]
+        public void ValidArmResourcePropertiesBag()
+        {
+            var messages = ValidateSwagger(Path.Combine(Core.Utilities.Extensions.CodeBaseDirectory, "Resource", "Swagger", "Validation", "positive", "arm-resource-properties-valid.json"));
+            messages.AssertOnlyValidationMessage(typeof(ArmResourcePropertiesBag), 0);
+        }
+
 
         /// <summary>
         /// Verifies resource models are correctly identified

@@ -48,7 +48,8 @@ namespace AutoRest.Swagger.Validation
 
             foreach (var violatingModel in violatingModels)
             {
-                yield return new ValidationMessage(new FileObjectPath(context.File, context.Path), this, violatingModel, string.Join(", ", definitions[violatingModel].Properties.Keys.Intersect(ArmPropertiesBag)));
+                yield return new ValidationMessage(new FileObjectPath(context.File, context.Path), this, violatingModel, 
+                                                   string.Join(", ", definitions[violatingModel].Properties.Keys.Intersect(ArmPropertiesBag)));
             }
         }
     }
