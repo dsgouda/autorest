@@ -21,12 +21,12 @@ use-extension:
 
 ``` yaml $(csharp)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.0.0"
+  "@microsoft.azure/autorest.csharp": "~2.1.0"
 ```
 
 ``` yaml $(jsonrpcclient)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.0.0"
+  "@microsoft.azure/autorest.csharp": "~2.1.0"
 ```
 
 ``` yaml $(go)
@@ -70,6 +70,11 @@ use-extension:
   "@microsoft.azure/autorest.typescript": "~2.0.0"
 ```
 
+``` yaml $(model-validator)
+use-extension:
+ "oav": "~0.4.14"
+```
+
 ### Graph
 
 #### Reflection
@@ -104,9 +109,11 @@ scope-configuration-emitter:
 
 #### Loading
 
+Note: We don't load anything if `--help` appears to be specified.
+
 Markdown documentation overrides:
 
-``` yaml
+``` yaml !$(help)
 pipeline:
   swagger-document-override/md-override-loader:
     output-artifact: immediate-config
@@ -114,7 +121,7 @@ pipeline:
 
 OpenAPI definitions:
 
-``` yaml
+``` yaml !$(help)
 pipeline:
   swagger-document/loader:
     # plugin: loader # IMPLICIT: default to last item if split by '/'

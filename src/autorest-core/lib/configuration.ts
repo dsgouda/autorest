@@ -43,6 +43,7 @@ export interface AutoRestConfigurationImpl {
   "message-format"?: "json";
   "use-extension"?: { [extensionName: string]: string };
   "require"?: string[] | string;
+  "help"?: any;
   "vscode"?: any; // activates VS Code specific behavior and does *NOT* influence the core's behavior (only consumed by VS Code extension)
 
   "override-info"?: any; // make sure source maps are pulling it! (see "composite swagger" method)
@@ -405,7 +406,15 @@ export class ConfigurationView {
                   if (path.length === 0) {
                     throw e;
                   }
-                  path.pop();
+                  // adjustment
+                  // 1) skip leading `$`
+                  if (path[0] === "$") {
+                    path.shift();
+                  }
+                  // 2) drop last part
+                  else {
+                    path.pop();
+                  }
                 } else {
                   throw e;
                 }

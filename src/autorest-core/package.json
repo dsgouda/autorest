@@ -20,14 +20,14 @@
   "homepage": "https://github.com/Azure/autorest/readme.md",
   "main": "./dist/main.js",
   "scripts": {
-    "test": "./node_modules/.bin/mocha ./dist/test",
+    "test": "./node_modules/.bin/mocha ./dist/test --timeout 0",
     "prepare": "shx mkdir -p ./dist/ && cd ./static_modules && npm install",
     "prepublishonly": "gulp build"
   },
   "typings": "./dist/main.d.ts",
   "devDependencies": {
-    "@microsoft.azure/async-io": "~1.0.21",
-    "@microsoft.azure/extension": "~1.2.11",
+    "@microsoft.azure/async-io": "~1.0.22",
+    "@microsoft.azure/extension": "~1.2.12",
     "@types/commonmark": "^0.27.0",
     "@types/jsonpath": "^0.1.29",
     "@types/node": "^8.0.28",
@@ -55,8 +55,8 @@
     "yargs": "^8.0.2"
   },
   "staticDependencies": {
-    "@microsoft.azure/async-io": "~1.0.21",
-    "@microsoft.azure/extension": "~1.2.11",
+    "@microsoft.azure/async-io": "~1.0.22",
+    "@microsoft.azure/extension": "~1.2.12",
     "commonmark": "^0.27.0",
     "file-url": "^2.0.2",
     "get-uri": "^2.0.0",
