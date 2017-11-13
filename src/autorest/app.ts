@@ -1,11 +1,10 @@
 #!/usr/bin/env node
+// load static module: ${__dirname }/static_modules.fs
+require('./static-loader.js').load(`${__dirname}/static_modules.fs`)
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-if (process.argv.indexOf("--no-static-loader") == -1) {
-  require("./static-loader").initialize();
-}
 
 if (process.argv.indexOf("--no-upgrade-check") != -1) {
   process.argv.push("--skip-upgrade-check");
@@ -14,7 +13,7 @@ if (process.argv.indexOf("--no-upgrade-check") != -1) {
 import { isFile } from "@microsoft.azure/async-io";
 import { cli, enhanceConsole } from "@microsoft.azure/console";
 import { Exception, LazyPromise } from "@microsoft.azure/polyfill";
-import { Enumerable as IEnumerable, From } from "./lib/ref/linq";
+import { Enumerable as IEnumerable, From } from "linq-es2015";
 import { networkEnabled, rootFolder, extensionManager, availableVersions, corePackage, installedCores, tryRequire, resolvePathForLocalVersion, ensureAutorestHome, selectVersion, pkgVersion } from "./autorest-as-a-service"
 import { gt } from "semver";
 

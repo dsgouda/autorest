@@ -27,6 +27,7 @@ import { BlameTree } from './source-map/blaming';
 import { MergeOverwriteOrAppend, resolveRValue } from './source-map/merging';
 import { TryDecodeEnhancedPositionFromName } from './source-map/source-map';
 import { safeEval } from './ref/safe-eval';
+import { OutstandingTaskAwaiter } from "./outstanding-task-awaiter"
 
 const untildify: (path: string) => string = require("untildify");
 
@@ -188,7 +189,7 @@ function ProxifyConfigurationView(cfgView: any) {
 }
 
 const loadedExtensions: { [fullyQualified: string]: { extension: Extension, autorestExtension: LazyPromise<AutoRestExtension> } } = {};
-export async function GetExtension(fullyQualified: string): Promise<AutoRestExtension> {
+/*@internal*/ export async function GetExtension(fullyQualified: string): Promise<AutoRestExtension> {
   return await loadedExtensions[fullyQualified].autorestExtension;
 }
 
@@ -240,7 +241,7 @@ export class ConfigurationView {
       this.config = this.rawConfig;
     }
     this.suppressor = new Suppressor(this);
-    this.Message({ Channel: Channel.Debug, Text: `Creating ConfigurationView : ${configs.length} sections.` });
+    // this.Message({ Channel: Channel.Debug, Text: `Creating ConfigurationView : ${configs.length} sections.` });
   }
 
   public get Keys(): Array<string> {
@@ -393,16 +394,23 @@ export class ConfigurationView {
           let blameTree: BlameTree | null = null;
 
           try {
+            const originalPath = JSON.stringify(s.Position.path);
+            let shouldComplain = false;
             while (blameTree === null) {
               try {
                 blameTree = this.DataStore.Blame(s.document, s.Position);
-              } catch (e) {
-                const path = s.Position.path as string[];
-                if (path) {
+                if (shouldComplain) {
                   this.Message({
                     Channel: Channel.Verbose,
-                    Text: `Could not find the exact path ${JSON.stringify(path)} for ${JSON.stringify(m.Text)}`
+                    Text: `\nDEVELOPER-WARNING: Path '${originalPath}' was corrected to ${JSON.stringify(s.Position.path)} on MESSAGE '${JSON.stringify(m.Text)}'\n`
                   });
+                }
+              } catch (e) {
+                if (!shouldComplain) {
+                  shouldComplain = true;
+                }
+                const path = s.Position.path as string[];
+                if (path) {
                   if (path.length === 0) {
                     throw e;
                   }
@@ -593,6 +601,17 @@ export class Configuration {
     return Promise.all(configs.map(c => this.DesugarRawConfig(c)));
   }
 
+  public static async shutdown() {
+    for (const each in loadedExtensions) {
+      const ext = loadedExtensions[each];
+      if (ext.autorestExtension.hasValue) {
+        const extension = await ext.autorestExtension;
+        extension.kill();
+        delete loadedExtensions[each];
+      }
+    }
+  }
+
   public async CreateView(messageEmitter: MessageEmitter, includeDefault: boolean, ...configs: Array<any>): Promise<ConfigurationView> {
     const configFileUri = this.fileSystem && this.configFileOrFolderUri
       ? await Configuration.DetectConfigurationFile(this.fileSystem, this.configFileOrFolderUri, messageEmitter)
@@ -600,8 +619,8 @@ export class Configuration {
     const configFileFolderUri = configFileUri ? ResolveUri(configFileUri, "./") : (this.configFileOrFolderUri || "file:///");
 
     const configSegments: any[] = [];
-    const createView = () => new ConfigurationView(messageEmitter, configFileFolderUri, ...configSegments);
-    const addSegments = async (configs: any[]): Promise<void> => { configSegments.push(...await this.DesugarRawConfigs(configs)); };
+    const createView = (segments: any[] = configSegments) => new ConfigurationView(messageEmitter, configFileFolderUri, ...segments);
+    const addSegments = async (configs: any[]): Promise<any[]> => { const segs = await this.DesugarRawConfigs(configs); configSegments.push(...segs); return segs; };
 
     // 1. overrides (CLI, ...)
     await addSegments(configs);
@@ -658,11 +677,13 @@ export class Configuration {
     // 5. resolve extensions
     const extMgr = await this.extensionManager;
     const addedExtensions = new Set<string>();
-    while (true) {
-      const tmpView = createView();
+    const viewsToHandle: ConfigurationView[] = [createView()];
+    while (viewsToHandle.length > 0) {
+      const tmpView = <ConfigurationView>viewsToHandle.pop();
       const additionalExtensions = tmpView.UseExtensions.filter(ext => !addedExtensions.has(ext.fullyQualified));
+      await addSegments([{ "used-extension": tmpView.UseExtensions.map(x => x.fullyQualified) }]);
       if (additionalExtensions.length === 0) {
-        break;
+        continue;
       }
       // acquire additional extensions
       for (const additionalExtension of additionalExtensions) {
@@ -731,9 +752,9 @@ export class Configuration {
           const inputView = messageEmitter.DataStore.GetReadThroughScope(new RealFileSystem());
           const blocks = await this.ParseCodeBlocks(
             await inputView.ReadStrict(CreateFileUri(await ext.extension.configurationPath)),
-            tmpView,
+            createView(),
             `extension-config-${additionalExtension.fullyQualified}`);
-          await addSegments(blocks);
+          viewsToHandle.push(createView(await addSegments(blocks)));
         } catch (e) {
           messageEmitter.Message.Dispatch({
             Channel: Channel.Fatal,
@@ -746,64 +767,60 @@ export class Configuration {
 
     return createView().Indexer;
   }
-
   public static async DetectConfigurationFile(fileSystem: IFileSystem, configFileOrFolderUri: string | null, messageEmitter?: MessageEmitter, walkUpFolders: boolean = false): Promise<string | null> {
+    const files = await this.DetectConfigurationFiles(fileSystem, configFileOrFolderUri, messageEmitter, walkUpFolders);
+
+    return From<string>(files).FirstOrDefault(each => each.toLowerCase().endsWith("/" + Constants.DefaultConfiguration)) ||
+      From<string>(files).OrderBy(each => each.length).FirstOrDefault() || null;
+  }
+
+  public static async DetectConfigurationFiles(fileSystem: IFileSystem, configFileOrFolderUri: string | null, messageEmitter?: MessageEmitter, walkUpFolders: boolean = false): Promise<Array<string>> {
+    const results = new Array<string>();
     const originalConfigFileOrFolderUri = configFileOrFolderUri;
 
-    //
-    if (!configFileOrFolderUri || configFileOrFolderUri.endsWith(".md")) {
-      return configFileOrFolderUri;
+    // null means null!
+    if (!configFileOrFolderUri) {
+      return results;
     }
 
     // try querying the Uri directly
-    if (ExistsUri(configFileOrFolderUri)) {
-      try {
-        const content = await fileSystem.ReadFile(configFileOrFolderUri);
+    try {
+      const content = await fileSystem.ReadFile(configFileOrFolderUri);
+      if (content.indexOf(Constants.MagicString) > -1) {
+        // the file name was passed in!
+        return [configFileOrFolderUri];
+      }
+      // this *was* an actual file passed in, not a folder. don't make this harder than it has to be.
+      return results;
+    } catch {
+      // didn't get the file successfully, move on.
+    }
+
+    // scan the filesystem items for configurations.
+    for (const name of await fileSystem.EnumerateFileUris(EnsureIsFolderUri(configFileOrFolderUri))) {
+      if (name.endsWith(".md")) {
+        const content = await fileSystem.ReadFile(name);
         if (content.indexOf(Constants.MagicString) > -1) {
-          return configFileOrFolderUri;
+          results.push(name);
         }
-      } catch (e) {
-        // that didn't work... try next
       }
     }
 
-    // search for a config file, walking up the folder tree
-    while (configFileOrFolderUri !== null) {
-      // scan the filesystem items for the configuration.
-      const configFiles = new Map<string, string>();
-
-      for (const name of await fileSystem.EnumerateFileUris(EnsureIsFolderUri(configFileOrFolderUri))) {
-        if (name.endsWith(".md")) {
-          const content = await fileSystem.ReadFile(name);
-          if (content.indexOf(Constants.MagicString) > -1) {
-            configFiles.set(name, content);
-          }
-        }
-      }
-
-      if (configFiles.size > 0) {
-        // it's the readme.md or the shortest filename.
-        const found =
-          From<string>(configFiles.keys()).FirstOrDefault(each => each.toLowerCase().endsWith("/" + Constants.DefaultConfiguration)) ||
-          From<string>(configFiles.keys()).OrderBy(each => each.length).First();
-
-        return found;
-      }
-
+    if (walkUpFolders) {
       // walk up
       const newUriToConfigFileOrWorkingFolder = ResolveUri(configFileOrFolderUri, "..");
-      configFileOrFolderUri = !walkUpFolders || newUriToConfigFileOrWorkingFolder === configFileOrFolderUri
-        ? null
-        : newUriToConfigFileOrWorkingFolder;
+      if (newUriToConfigFileOrWorkingFolder !== configFileOrFolderUri) {
+        results.push(... await this.DetectConfigurationFiles(fileSystem, newUriToConfigFileOrWorkingFolder, messageEmitter, walkUpFolders))
+      }
+    } else {
+      if (messageEmitter && results.length === 0) {
+        messageEmitter.Message.Dispatch({
+          Channel: Channel.Warning,
+          Text: `No configuration found at '${originalConfigFileOrFolderUri}'.`
+        });
+      }
     }
 
-    if (messageEmitter) {
-      messageEmitter.Message.Dispatch({
-        Channel: Channel.Warning,
-        Text: `No configuration found at '${originalConfigFileOrFolderUri}'.`
-      });
-    }
-
-    return null;
+    return results;
   }
 }

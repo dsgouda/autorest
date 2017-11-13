@@ -21,12 +21,12 @@ use-extension:
 
 ``` yaml $(csharp)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.1.0"
+  "@microsoft.azure/autorest.csharp": "~2.2.0"
 ```
 
 ``` yaml $(jsonrpcclient)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.1.0"
+  "@microsoft.azure/autorest.csharp": "~2.2.0"
 ```
 
 ``` yaml $(go)
@@ -147,11 +147,32 @@ pipeline:
     input: transform
     output-artifact: swagger-document
   swagger-document/emitter:
-    input: transform
+    input: identity
     scope: scope-swagger-document/emitter
+  # OpenAPI
+  openapi-document/openapi-document-converter:
+    input: swagger-document/identity
+    output-artifact: openapi-document
+  openapi-document/transform:
+    input: openapi-document-converter
+    output-artifact: openapi-document
+  openapi-document/identity:
+    input: transform
+    output-artifact: openapi-document
+  openapi-document/emitter:
+    input: identity
+    scope: scope-openapi-document/emitter
 
 scope-swagger-document/emitter:
   input-artifact: swagger-document
+  is-object: true
+  # rethink that output-file part
+  output-uri-expr: |
+    $config["output-file"] || 
+    ($config.namespace ? $config.namespace.replace(/:/g,'_') : undefined) || 
+    $config["input-file"][0].split('/').reverse()[0].split('\\').reverse()[0].replace(/\.json$/, "")
+scope-openapi-document/emitter:
+  input-artifact: openapi-document
   is-object: true
   # rethink that output-file part
   output-uri-expr: |
@@ -167,7 +188,8 @@ scope-cm/emitter:
 
 #### Polyfills
 
-Support for `additionalProperties: true/false` in `definitions` section
+
+##### `additionalProperties: true/false` in definitions section
 
 ``` yaml
 directive:
@@ -178,6 +200,18 @@ directive:
       ? ($ ? { type: "object" } : undefined)
       : $
   reason: polyfill
+```
+
+##### Reproduce old buggy behavior of ignoring `required`ness of properties in nested schemas (anything outside `definitions` section)
+See https://github.com/Azure/autorest/issues/2688
+
+``` yaml $(ignore-nested-required)
+directive:
+- from: openapi-document
+  where: $..*[?(Array.isArray(@.required) && @.properties)]
+  transform: |
+    if ($path.length > 3) delete $.required;
+  reason: see issue https://github.com/Azure/autorest/issues/2688
 ```
 
 #### Validation

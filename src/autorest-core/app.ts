@@ -1,15 +1,15 @@
 #!/usr/bin/env node
+// load static module: ${__dirname }/static_modules.fs
+require('./static-loader.js').load(`${__dirname}/static_modules.fs`)
+
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// enable static modules for autorest-core
-if ((<any>global).StaticVolumeSet) {
-  (<any>global).StaticVolumeSet.addFileSystem(`${__dirname}/static_modules.fs`)
-}
-
 require('events').EventEmitter.defaultMaxListeners = 100;
+process.env['ELECTRON_RUN_AS_NODE'] = "1";
+delete process.env['ELECTRON_NO_ATTACH_CONSOLE'];
 
 // start of autorest-ng
 // the console app starts for real here.
@@ -19,7 +19,7 @@ import { AutoRestConfigurationImpl, MergeConfigurations } from './lib/configurat
 import { Parse, Stringify } from "./lib/ref/yaml";
 import { CreateObject, nodes } from "./lib/ref/jsonpath";
 import { OutstandingTaskAwaiter } from "./lib/outstanding-task-awaiter";
-import { AutoRest, ConfigurationView } from './lib/autorest-core';
+import { AutoRest, ConfigurationView, IsOpenApiDocument } from './lib/autorest-core';
 import { ShallowCopy } from "./lib/source-map/merging";
 import { Message, Channel } from "./lib/message";
 import { resolve as currentDirectory } from "path";
@@ -334,7 +334,7 @@ async function resourceSchemaBatch(api: AutoRest): Promise<number> {
     for (const eachFile of batchConfig["input-file"]) {
       const path = ResolveUri(config.configFileFolderUri, eachFile);
       const content = await ReadUri(path);
-      if (!AutoRest.IsSwaggerFile(content)) {
+      if (!await IsOpenApiDocument(content)) {
         exitcode++;
         console.error(`File ${path} is not a OpenAPI file.`);
         continue;

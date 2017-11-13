@@ -1,9 +1,10 @@
+import { ConvertJsonx2Yaml, ConvertYaml2Jsonx } from '../parsing/yaml';
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastStringify } from "../ref/yaml";
+import { Descendants, FastStringify, StringifyAst } from '../ref/yaml';
 import { JsonPath, stringify } from "../ref/jsonpath";
 import { safeEval } from "../ref/safe-eval";
 import { LazyPromise } from "../lazy";
@@ -18,6 +19,7 @@ import { DataHandle, DataSink, DataSource, QuickDataSource } from '../data-store
 import { IFileSystem } from "../file-system";
 import { EmitArtifacts } from "./artifact-emitter";
 import { ComposeSwaggers, LoadLiterateSwaggerOverrides, LoadLiterateSwaggers } from './swagger-loader';
+import { ConvertOAI2toOAI3 } from "../openapi/conversion";
 
 export type PipelinePlugin = (config: ConfigurationView, input: DataSource, sink: DataSink) => Promise<DataSource>;
 interface PipelineNode {
@@ -59,19 +61,50 @@ function CreatePluginMdOverrideLoader(): PipelinePlugin {
   };
 }
 
-function CreatePluginTransformer(): PipelinePlugin {
+
+function CreatePerFilePlugin(processorBuilder: (config: ConfigurationView) => Promise<(input: DataHandle, sink: DataSink) => Promise<DataHandle>>): PipelinePlugin {
   return async (config, input, sink) => {
-    const isObject = config.GetEntry("is-object" as any) === false ? false : true;
-    const manipulator = new Manipulator(config);
+    const processor = await processorBuilder(config);
     const files = await input.Enum();
     const result: DataHandle[] = [];
     for (let file of files) {
       const fileIn = await input.ReadStrict(file);
-      const fileOut = await manipulator.Process(fileIn, sink, isObject, fileIn.Description);
-      result.push(await sink.Forward(fileIn.Description, fileOut));
+      const fileOut = await processor(fileIn, sink);
+      result.push(fileOut);
     }
     return new QuickDataSource(result);
   };
+}
+function CreatePluginOAI2toOAIx(): PipelinePlugin {
+  return CreatePerFilePlugin(async config => async (fileIn, sink) => {
+    const fileOut = await ConvertOAI2toOAI3(fileIn, sink);
+    return await sink.Forward(fileIn.Description, fileOut);
+  });
+}
+function CreatePluginYaml2Jsonx(): PipelinePlugin {
+  return CreatePerFilePlugin(async config => async (fileIn, sink) => {
+    let ast = fileIn.ReadYamlAst();
+    ast = ConvertYaml2Jsonx(ast);
+    return await sink.WriteData(fileIn.Description, StringifyAst(ast));
+  });
+}
+function CreatePluginJsonx2Yaml(): PipelinePlugin {
+  return CreatePerFilePlugin(async config => async (fileIn, sink) => {
+    let ast = fileIn.ReadYamlAst();
+    ast = ConvertJsonx2Yaml(ast);
+    return await sink.WriteData(fileIn.Description, StringifyAst(ast));
+  });
+}
+
+function CreatePluginTransformer(): PipelinePlugin {
+  return CreatePerFilePlugin(async config => {
+    const isObject = config.GetEntry("is-object" as any) === false ? false : true;
+    const manipulator = new Manipulator(config);
+    return async (fileIn, sink) => {
+      const fileOut = await manipulator.Process(fileIn, sink, isObject, fileIn.Description);
+      return await sink.Forward(fileIn.Description, fileOut);
+    };
+  });
 }
 function CreatePluginTransformerImmediate(): PipelinePlugin {
   return async (config, input, sink) => {
@@ -267,6 +300,9 @@ export async function RunPipeline(configView: ConfigurationView, fileSystem: IFi
     // TODO: replace with OAV again
     "semantic-validator": CreatePluginIdentity(),
 
+    "openapi-document-converter": CreatePluginOAI2toOAIx(),
+    "yaml2jsonx": CreatePluginYaml2Jsonx(),
+    "jsonx2yaml": CreatePluginJsonx2Yaml(),
     "commonmarker": CreateCommonmarkProcessor(),
     "emitter": CreateArtifactEmitter(),
     "pipeline-emitter": CreateArtifactEmitter(async () => new QuickDataSource([await configView.DataStore.getDataSink().WriteObject("pipeline", pipeline.pipeline)])),
@@ -275,11 +311,13 @@ export async function RunPipeline(configView: ConfigurationView, fileSystem: IFi
 
   // dynamically loaded, auto-discovered plugins
   const __extensionExtension: { [pluginName: string]: AutoRestExtension } = {};
-  for (const useExtension of configView.UseExtensions) {
-    const extension = await GetExtension(useExtension.fullyQualified);
+  for (const useExtensionQualifiedName of configView.GetEntry("used-extension" as any) || []) {
+    const extension = await GetExtension(useExtensionQualifiedName);
     for (const plugin of await extension.GetPluginNames(configView.CancellationToken)) {
-      plugins[plugin] = CreatePluginExternal(extension, plugin);
-      __extensionExtension[plugin] = extension;
+      if (!plugins[plugin]) {
+        plugins[plugin] = CreatePluginExternal(extension, plugin);
+        __extensionExtension[plugin] = extension;
+      }
     }
   }
 
@@ -361,6 +399,7 @@ export async function RunPipeline(configView: ConfigurationView, fileSystem: IFi
   // execute pipeline
   const barrier = new OutstandingTaskAwaiter();
   const barrierRobust = new OutstandingTaskAwaiter();
+
   for (const name of Object.keys(pipeline.pipeline)) {
     const task = getTask(name);
     const taskx: { _state: "running" | "failed" | "complete", _result: () => DataHandle[], _finishedAt: number } = task as any;
@@ -372,14 +411,18 @@ export async function RunPipeline(configView: ConfigurationView, fileSystem: IFi
       taskx._finishedAt = Date.now();
     }).catch(() => taskx._state = "failed");
     barrier.Await(task);
-    barrierRobust.Await(task.catch(() => null));
+    barrierRobust.Await(task.catch(() => { }));
   }
 
   try {
     await barrier.Wait();
   } catch (e) {
     // wait for outstanding nodes
-    await barrierRobust.Wait();
+    try {
+      await barrierRobust.Wait();
+    } catch {
+      // wait for others to fail or whatever...
+    }
     throw e;
   }
 }

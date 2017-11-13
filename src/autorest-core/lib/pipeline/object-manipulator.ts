@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IdentitySourceMapping } from "../source-map/merging";
-import { Clone, CloneAst, Descendants, StringifyAst, ToAst, YAMLNode } from "../ref/yaml";
+import { Clone, CloneAst, Descendants, ParseNode, StringifyAst, ToAst, YAMLNode } from "../ref/yaml";
 import { ReplaceNode, ResolveRelativeNode } from "../parsing/yaml";
 import { DataHandle, DataSink } from "../data-store/data-store";
 import { IsPrefix, JsonPath, nodes, paths, stringify } from "../ref/jsonpath";
@@ -23,22 +23,14 @@ export async function ManipulateObject(
   }): Promise<{ anyHit: boolean, result: DataHandle }> {
 
   // find paths matched by `whereJsonQuery`
-  const doc = src.ReadObject<any>();
-  const allHits = nodes(doc, whereJsonQuery).sort((a, b) => a.path.length - b.path.length);
-  if (allHits.length === 0) {
+  let ast: YAMLNode = CloneAst(src.ReadYamlAst());
+  const doc = ParseNode<any>(ast);
+  const hits = nodes(doc, whereJsonQuery).sort((a, b) => a.path.length - b.path.length);
+  if (hits.length === 0) {
     return { anyHit: false, result: src };
   }
 
-  // filter out sub-hits (only consider highest hit)
-  const hits: { path: JsonPath, value: any }[] = [];
-  for (const hit of allHits) {
-    if (hits.every(existingHit => !IsPrefix(existingHit.path, hit.path))) {
-      hits.push(hit);
-    }
-  }
-
   // process
-  let ast: YAMLNode = CloneAst(src.ReadYamlAst());
   const mapping = IdentitySourceMapping(src.key, ast).filter(m => !hits.some(hit => IsPrefix(hit.path, (m.generated as any).path)));
   for (const hit of hits) {
     if (ast === undefined) {

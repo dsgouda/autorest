@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { pushAll } from '../ref/array';
 import { Lines } from "../parsing/text-utility";
 import {
   CommonmarkHeadingFollowingText,
@@ -28,7 +29,8 @@ import { MergeYamls, IdentitySourceMapping } from "../source-map/merging";
 let ctr = 0;
 
 function isReferenceNode(node: YAMLNodeWithPath): boolean {
-  return node.path[node.path.length - 1] === "$ref" && typeof node.node.value === "string";
+  const lastKey = node.path[node.path.length - 1];
+  return (lastKey === "$ref" || lastKey === "x-ms-odata") && typeof node.node.value === "string";
 }
 
 async function EnsureCompleteDefinitionIsPresent(
@@ -428,7 +430,7 @@ export async function ComposeSwaggers(config: ConfigurationView, overrideInfoTit
     }
 
     // finish source map
-    mapping.push(...IdentitySourceMapping(inputSwagger.key, ToAst(swagger)));
+    pushAll(mapping, IdentitySourceMapping(inputSwagger.key, ToAst(swagger)));
 
     // populate object
     populate.forEach(f => f());
