@@ -115,6 +115,7 @@ modelTypes:
         modelType:
           $id: '10'
           $type: EnumType
+          modelAsExtensible: false
           values:
             - name: AccountNameInvalid
               serializedName: AccountNameInvalid
@@ -192,6 +193,7 @@ modelTypes:
         modelType:
           $id: '16'
           $type: EnumType
+          modelAsExtensible: false
           values:
             - name: Standard_LRS
               serializedName: Standard_LRS
@@ -516,6 +518,7 @@ modelTypes:
         modelType:
           $id: '41'
           $type: EnumType
+          modelAsExtensible: false
           values:
             - name: Creating
               serializedName: Creating
@@ -632,6 +635,7 @@ modelTypes:
         modelType:
           $id: '48'
           $type: EnumType
+          modelAsExtensible: false
           values:
             - name: Available
               serializedName: Available
@@ -1320,6 +1324,7 @@ modelTypes:
         modelType:
           $id: '99'
           $type: EnumType
+          modelAsExtensible: false
           values:
             - name: Count
               serializedName: Count
