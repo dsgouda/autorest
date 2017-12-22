@@ -32,7 +32,7 @@ A good description.
 paths:
   "/cowbell":
     post:
-      description: []
+      # description: [] # TODO: add to schema if moving on with that
       operationId: Cowbell_Add
       parameters:
       - in: body
@@ -62,5 +62,5 @@ definitions:
         format: int64
       name:
         type: string
-    description: []
+    # description: [] # TODO: add to schema if moving on with that
 ```

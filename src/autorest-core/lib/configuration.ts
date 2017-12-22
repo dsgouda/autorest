@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Stringify } from './ref/yaml';
 import { Extension, ExtensionManager, LocalExtension } from "@microsoft.azure/extension";
 import { ChildProcess } from "child_process";
 
@@ -41,7 +42,7 @@ export interface AutoRestConfigurationImpl {
   "directive"?: Directive[] | Directive;
   "declare-directive"?: { [name: string]: string };
   "output-artifact"?: string[] | string;
-  "message-format"?: "json";
+  "message-format"?: "json" | "yaml" | "regular";
   "use-extension"?: { [extensionName: string]: string };
   "require"?: string[] | string;
   "help"?: any;
@@ -132,10 +133,6 @@ export class DirectiveView {
 
   public get suppress(): Iterable<string> {
     return ValuesOf<string>(this.directive["suppress"]);
-  }
-
-  public get set(): Iterable<string> {
-    return ValuesOf<string>(this.directive["set"]);
   }
 
   public get transform(): Iterable<string> {
@@ -358,11 +355,15 @@ export class ConfigurationView {
   }
 
   public get DebugMode(): boolean {
-    return this.config["debug"] as boolean;
+    return !!this.config["debug"];
   }
 
   public get VerboseMode(): boolean {
-    return this.config["verbose"] as boolean;
+    return !!this.config["verbose"];
+  }
+
+  public get HelpRequested(): boolean {
+    return !!this.config["help"];
   }
 
   public * GetNestedConfiguration(pluginName: string): Iterable<ConfigurationView> {
@@ -490,12 +491,15 @@ export class ConfigurationView {
                 }
                 return text;
               });
-              if (mx.Details.length > 0) {
-                mx.Details["jsonref"] = mx.Details[0];
-                mx.Details["json-path"] = mx.Details[0];
+              if (mx.Details.sources.length > 0) {
+                mx.Details["jsonref"] = mx.Details.sources[0];
+                mx.Details["json-path"] = mx.Details.sources[0];
               }
             }
             mx.FormattedMessage = JSON.stringify(mx.Details || mx, null, 2);
+            break;
+          case "yaml":
+            mx.FormattedMessage = Stringify([mx.Details || mx]).replace(/^---/, "");
             break;
           default:
             let text = `${(mx.Channel || Channel.Information).toString().toUpperCase()}${mx.Key ? ` (${[...mx.Key].join("/")})` : ""}: ${mx.Text}`;
@@ -543,7 +547,7 @@ export class Configuration {
       contextConfig.DataStore.getDataSink());
 
     const blocks = hConfig.map(each => {
-      const block = each.data.ReadObject<AutoRestConfigurationImpl>();
+      const block = each.data.ReadObject<AutoRestConfigurationImpl>() || {};
       if (typeof block !== "object") {
         contextConfig.Message({
           Channel: Channel.Error,
@@ -558,7 +562,7 @@ export class Configuration {
     return blocks;
   }
 
-  private extensionManager: LazyPromise<ExtensionManager> = new LazyPromise<ExtensionManager>(() => ExtensionManager.Create(join(process.env["autorest.home"] || require("os").homedir(), ".autorest")));
+  private static extensionManager: LazyPromise<ExtensionManager> = new LazyPromise<ExtensionManager>(() => ExtensionManager.Create(join(process.env["autorest.home"] || require("os").homedir(), ".autorest")));
 
   private async DesugarRawConfig(configs: any): Promise<any> {
     // shallow copy
@@ -576,7 +580,7 @@ export class Configuration {
       use = [use];
     }
     if (Array.isArray(use)) {
-      const extMgr = await this.extensionManager;
+      const extMgr = await Configuration.extensionManager;
       for (const useEntry of use) {
         if (typeof useEntry === "string") {
           // attempt <package>@<version> interpretation
@@ -602,6 +606,15 @@ export class Configuration {
   }
 
   public static async shutdown() {
+    AutoRestExtension.killAll();
+
+    // once we shutdown those extensions, we should shutdown the EM too. 
+    const extMgr = await Configuration.extensionManager;
+    extMgr.dispose();
+
+    // but if someone goes to use that, we're going to need a new instance (since the shared lock will be gone in the one we disposed.)
+    Configuration.extensionManager = new LazyPromise<ExtensionManager>(() => ExtensionManager.Create(join(process.env["autorest.home"] || require("os").homedir(), ".autorest")))
+
     for (const each in loadedExtensions) {
       const ext = loadedExtensions[each];
       if (ext.autorestExtension.hasValue) {
@@ -675,7 +688,7 @@ export class Configuration {
       await addSegments(blocks);
     }
     // 5. resolve extensions
-    const extMgr = await this.extensionManager;
+    const extMgr = await Configuration.extensionManager;
     const addedExtensions = new Set<string>();
     const viewsToHandle: ConfigurationView[] = [createView()];
     while (viewsToHandle.length > 0) {
@@ -707,7 +720,7 @@ export class Configuration {
               // local package
               messageEmitter.Message.Dispatch({
                 Channel: Channel.Information,
-                Text: `Loading local AutoRest extension '${additionalExtension.name}' (${localPath})`
+                Text: `> Loading local AutoRest extension '${additionalExtension.name}' (${localPath})`
               });
 
               const pack = await extMgr.findPackage(additionalExtension.name, localPath);
@@ -724,7 +737,7 @@ export class Configuration {
               if (installedExtension) {
                 messageEmitter.Message.Dispatch({
                   Channel: Channel.Information,
-                  Text: `Loading AutoRest extension '${additionalExtension.name}' (${additionalExtension.source})`
+                  Text: `> Loading AutoRest extension '${additionalExtension.name}' (${additionalExtension.source})`
                 });
                 // start extension
                 ext = loadedExtensions[additionalExtension.fullyQualified] = {
@@ -736,9 +749,11 @@ export class Configuration {
                 const pack = await extMgr.findPackage(additionalExtension.name, additionalExtension.source);
                 messageEmitter.Message.Dispatch({
                   Channel: Channel.Information,
-                  Text: `Installing AutoRest extension '${additionalExtension.name}' (${additionalExtension.source})`
+                  Text: `> Installing AutoRest extension '${additionalExtension.name}' (${additionalExtension.source})`
                 });
+                const cwd = process.cwd(); // TODO: fix extension?
                 const extension = await extMgr.installPackage(pack, false, 5 * 60 * 1000, (progressInit: any) => progressInit.Message.Subscribe((s: any, m: any) => tmpView.Message({ Text: m, Channel: Channel.Verbose })));
+                process.chdir(cwd);
                 // start extension
                 ext = loadedExtensions[additionalExtension.fullyQualified] = {
                   extension: extension,
@@ -775,28 +790,32 @@ export class Configuration {
   }
 
   public static async DetectConfigurationFiles(fileSystem: IFileSystem, configFileOrFolderUri: string | null, messageEmitter?: MessageEmitter, walkUpFolders: boolean = false): Promise<Array<string>> {
-    const results = new Array<string>();
     const originalConfigFileOrFolderUri = configFileOrFolderUri;
 
     // null means null!
     if (!configFileOrFolderUri) {
-      return results;
+      return [];
     }
 
     // try querying the Uri directly
+    let content: string | null;
     try {
-      const content = await fileSystem.ReadFile(configFileOrFolderUri);
+      content = await fileSystem.ReadFile(configFileOrFolderUri);
+    } catch {
+      // didn't get the file successfully, move on.
+      content = null;
+    }
+    if (content !== null) {
       if (content.indexOf(Constants.MagicString) > -1) {
         // the file name was passed in!
         return [configFileOrFolderUri];
       }
       // this *was* an actual file passed in, not a folder. don't make this harder than it has to be.
-      return results;
-    } catch {
-      // didn't get the file successfully, move on.
+      throw new Error(`Specified file '${originalConfigFileOrFolderUri}' is not a valid configuration file (missing magic string, see https://github.com/Azure/autorest/blob/master/docs/user/literate-file-formats/configuration.md#the-file-format).`);
     }
 
     // scan the filesystem items for configurations.
+    const results = new Array<string>();
     for (const name of await fileSystem.EnumerateFileUris(EnsureIsFolderUri(configFileOrFolderUri))) {
       if (name.endsWith(".md")) {
         const content = await fileSystem.ReadFile(name);
@@ -815,7 +834,7 @@ export class Configuration {
     } else {
       if (messageEmitter && results.length === 0) {
         messageEmitter.Message.Dispatch({
-          Channel: Channel.Warning,
+          Channel: Channel.Verbose,
           Text: `No configuration found at '${originalConfigFileOrFolderUri}'.`
         });
       }

@@ -16,68 +16,87 @@ openapi-type: arm
 
 ``` yaml $(azureresourceschema)
 use-extension:
-  "@microsoft.azure/autorest.azureresourceschema": "~2.0.0"
+  "@microsoft.azure/autorest.azureresourceschema": "~2.0.14"
 ```
 
 ``` yaml $(csharp)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.2.0"
+  "@microsoft.azure/autorest.csharp": "~2.2.51"
 ```
 
 ``` yaml $(jsonrpcclient)
 use-extension:
-  "@microsoft.azure/autorest.csharp": "~2.2.0"
+  "@microsoft.azure/autorest.csharp": "~2.2.51"
 ```
 
 ``` yaml $(go)
 use-extension:
-  "@microsoft.azure/autorest.go": "~2.0.0"
+  "@microsoft.azure/autorest.go": "~2.1.47"
 ```
 
 ``` yaml $(java)
 use-extension:
-  "@microsoft.azure/autorest.java": "~2.0.0"
+  "@microsoft.azure/autorest.java": "~2.1.32"
 ```
 
 ``` yaml $(nodejs)
 use-extension:
-  "@microsoft.azure/autorest.nodejs": "~2.0.0"
+  "@microsoft.azure/autorest.nodejs": "~2.1.25"
 ```
 
 ``` yaml $(php)
 use-extension:
-  "@microsoft.azure/autorest.php": "~2.0.0"
+  "@microsoft.azure/autorest.php": "~2.0.12"
 ```
 
 ``` yaml $(python)
 use-extension:
-  "@microsoft.azure/autorest.python": "~2.0.0"
+  "@microsoft.azure/autorest.python": "~2.1.26"
 ```
 
 ``` yaml $(ruby)
 use-extension:
-  "@microsoft.azure/autorest.ruby": "~2.0.0"
-```
-
-``` yaml $(azure-validator)
-use-extension:
-  "@microsoft.azure/classic-openapi-validator": "~1.0.3"
-  "@microsoft.azure/openapi-validator": "~1.0.0"
+  "@microsoft.azure/autorest.ruby": "~3.1.26"
 ```
 
 ``` yaml $(typescript)
 use-extension:
-  "@microsoft.azure/autorest.typescript": "~2.0.0"
+  "@microsoft.azure/autorest.typescript": "~2.0.12"
+```
+
+``` yaml $(azure-validator)
+use-extension:
+  "@microsoft.azure/classic-openapi-validator": "~1.0.9"
+  "@microsoft.azure/openapi-validator": "~1.0.2"
 ```
 
 ``` yaml $(model-validator)
 use-extension:
- "oav": "~0.4.14"
+ "oav": "~0.4.20"
 ```
 
 ### Graph
 
 #### Reflection
+
+##### Input API versions (azure-rest-api-specs + C# specific)
+
+``` yaml $(csharp)
+pipeline:
+  swagger-document/reflect-api-versions-cs: # emits a *.cs file containing information about the API versions involved in this call
+    input:
+    - identity
+    - individual/identity
+    - csharp/emitter # ensures delay and C# scope
+    scope: reflect-api-versions
+  swagger-document/reflect-api-versions-cs/emitter: # emits the pipeline graph
+    input: reflect-api-versions-cs
+    scope: scope-reflect-api-versions-cs-emitter
+
+scope-reflect-api-versions-cs-emitter:
+  input-artifact: source-file-csharp
+  output-uri-expr: $key
+```
 
 ##### Pipeline
 
@@ -107,30 +126,131 @@ scope-configuration-emitter:
     "configuration"
 ```
 
-#### Loading
+#### Help
 
-Note: We don't load anything if `--help` appears to be specified.
+``` yaml $(help)
+input-file: dummy # trick "no input file" checks... may wanna refactor at some point
+
+pipeline:
+  help:
+    scope: help
+
+output-artifact:
+  - help
+
+help-content: # type: Help as defined in autorest-core/help.ts
+  _autorest-0:
+    categoryFriendlyName: Overall Verbosity
+    settings:
+    # - key: quiet
+    #   description: suppress most output information
+    - key: verbose
+      description: display verbose logging information
+    - key: debug
+      description: display debug logging information
+  _autorest-1:
+    categoryFriendlyName: Manage Installation
+    settings:
+    - key: info # list-installed
+      description: display information about the installed version of autorest and its extensions
+    - key: list-available
+      description: display available AutoRest versions
+    - key: reset
+      description: removes all autorest extensions and downloads the latest version of the autorest-core extension
+    - key: preview
+      description: enables using autorest extensions that are not yet released
+    - key: latest
+      description: installs the latest autorest-core extension
+    - key: force
+      description: force the re-installation of the autorest-core extension and frameworks
+    - key: version
+      description: use the specified version of the autorest-core extension
+      type: string
+  _autorest-core-0:
+    categoryFriendlyName: Core Settings and Switches
+    settings:
+    - key: help
+      description: display help (combine with flags like --csharp to get further details about specific functionality)
+    - key: input-file
+      type: string | string[]
+      description: OpenAPI file to use as input (use this setting repeatedly to pass multiple files at once)
+    - key: output-folder
+      type: string
+      description: "target folder for generated artifacts; default: \"<base folder>/generated\""
+    - key: clear-output-folder
+      description: clear the output folder before writing generated artifacts to disk (use with extreme caution!)
+    - key: base-folder
+      type: string
+      description: "path to resolve relative paths (input/output files/folders) against; default: directory of configuration file, current directory otherwise"
+    - key: message-format
+      type: "\"regular\" | \"json\""
+      description: "format of messages (e.g. from OpenAPI validation); default: \"regular\""
+    - key: github-auth-token
+      type: string
+      description: OAuth token to use when pointing AutoRest at files living in a private GitHub repository
+  _autorest-core-1:
+    categoryFriendlyName: Core Functionality
+    description: "> While AutoRest can be extended arbitrarily by 3rd parties (say, with a custom generator),\n> we officially support and maintain the following functionality.\n> More specific help is shown when combining the following switches with `--help` ."
+    settings:
+    - key: csharp
+      description: generate C# client code
+    - key: go
+      description: generate Go client code
+    - key: java
+      description: generate Java client code
+    - key: python
+      description: generate Python client code
+    - key: nodejs
+      description: generate NodeJS client code
+    - key: typescript
+      description: generate TypeScript client code
+    - key: ruby
+      description: generate Ruby client code
+    - key: php
+      description: generate PHP client code
+    - key: azureresourceschema
+      description: generate Azure resource schemas
+    - key: model-validator
+      description: validates an OpenAPI document against linked examples (see https://github.com/Azure/azure-rest-api-specs/search?q=x-ms-examples )
+    # - key: semantic-validator
+    #   description: validates an OpenAPI document semantically
+    - key: azure-validator
+      description: validates an OpenAPI document against guidelines to improve quality (and optionally Azure guidelines)
+```
+
+Note: We don't load anything if `--help` is specified.
+
+``` yaml !$(help)
+perform-load: true # kick off loading
+```
+
+#### Loading
 
 Markdown documentation overrides:
 
-``` yaml !$(help)
+``` yaml
 pipeline:
   swagger-document-override/md-override-loader:
     output-artifact: immediate-config
+    scope: perform-load
 ```
 
 OpenAPI definitions:
 
-``` yaml !$(help)
+``` yaml
 pipeline:
   swagger-document/loader:
     # plugin: loader # IMPLICIT: default to last item if split by '/'
     output-artifact: swagger-document
+    scope: perform-load
   swagger-document/individual/transform:
     input: loader
     output-artifact: swagger-document
-  swagger-document/individual/identity:
+  swagger-document/individual/schema-validator:
     input: transform
+    output-artifact: swagger-document
+  swagger-document/individual/identity:
+    input: schema-validator
     output-artifact: swagger-document
   swagger-document/compose:
     input: individual/identity
@@ -156,8 +276,11 @@ pipeline:
   openapi-document/transform:
     input: openapi-document-converter
     output-artifact: openapi-document
-  openapi-document/identity:
+  openapi-document/component-modifiers:
     input: transform
+    output-artifact: openapi-document
+  openapi-document/identity:
+    input: component-modifiers
     output-artifact: openapi-document
   openapi-document/emitter:
     input: identity
@@ -179,7 +302,7 @@ scope-openapi-document/emitter:
     $config["output-file"] || 
     ($config.namespace ? $config.namespace.replace(/:/g,'_') : undefined) || 
     $config["input-file"][0].split('/').reverse()[0].split('\\').reverse()[0].replace(/\.json$/, "")
-scope-cm/emitter:
+scope-cm/emitter: # can remove once every generator depends on recent modeler
   input-artifact: code-model-v1
   is-object: true
   output-uri-expr: |
@@ -325,6 +448,16 @@ declare-directive:
           return { from: "swagger-document", where: `$.paths.*[?(@.operationId == ${JSON.stringify($)})]` };
       }
     })()
+  where-model: >-
+    (() => {
+      switch ($context.from) {
+        case "code-model-v1":
+          throw "not implemented";
+        case "swagger-document":
+        default:
+          return { from: "swagger-document", where: `$.definitions[${JSON.stringify($)}]` };
+      }
+    })()
 ```
 
 ## Removal
@@ -338,5 +471,38 @@ declare-directive:
       from: 'swagger-document',
       "where-operation": $,
       transform: 'return undefined'
+    }
+  rename-operation: >-
+    {
+      from: 'swagger-document',
+      "where-operation": $.from,
+      transform: `$.operationId = ${JSON.stringify($.to)}`
+    }
+  remove-model: >-
+    {
+      from: 'swagger-document',
+      "where-model": $,
+      transform: 'return undefined'
+    }
+  rename-model: >-
+    [{
+      from: 'swagger-document',
+      where: '$.definitions',
+      transform: `if ($[${JSON.stringify($.from)}]) { $[${JSON.stringify($.to)}] = $[${JSON.stringify($.from)}]; delete $[${JSON.stringify($.from)}]; }`
+    },
+    {
+      from: 'swagger-document',
+      where: `$..['$ref']`,
+      transform: `$ = $ === "#/definitions/${$.from}" ? "#/definitions/${$.to}" : $`
+    }]
+  remove-property: >-
+    {
+      from: 'swagger-document',
+      transform: `delete $.properties[${JSON.stringify($)}]`
+    }
+  rename-property: >-
+    {
+      from: 'swagger-document',
+      transform: `if ($.properties[${JSON.stringify($.from)}]) { $.properties[${JSON.stringify($.to)}] = $.properties[${JSON.stringify($.from)}]; delete $.properties[${JSON.stringify($.from)}]; }`
     }
 ```

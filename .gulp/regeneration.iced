@@ -1,6 +1,6 @@
 
 task 'regenerate', 'regenerate samples', (done) ->
-  execute "node #{basefolder}/src/autorest/dist/app.js --reset --no-upgrade-check --allow-no-input" , {silent:false }, (code,stdout,stderr) -> 
+  execute "node #{basefolder}/src/autorest/dist/app.js --reset --no-upgrade-check --allow-no-input --version=#{basefolder}/src/autorest-core --verbose --debug" , {silent:false }, (code,stdout,stderr) -> 
     count = 0
     # source 'Samples/*/**/readme.md'
     source 'Samples/*/**/readme.md'
@@ -32,6 +32,7 @@ task 'regenerate', 'regenerate samples', (done) ->
               .forEach((file) -> 
                 sed "-i", /\(node:\d+\)/g, "(node)", file  # node process IDs
                 sed "-i", /\bfile:\/\/[^\s]*\/autorest[^\/\\]*/g, "", file  # blame locations
+                sed "-i", /\s\'?[^\s]+[\/\\]autorest-core\'?(?=(\b|\\n))/g, " autorest-core", file  # autorest-core path as reported by bootstrapper (configuration artifact's 'version' field)
                 sed "-i", /\sat .*/g, "at ...", file                        # exception stack traces
                 sed "-i", /mem:\/\/\/[^: ]*/g, "mem", file                  # memory URIs (depend on timing)
                 (cat file).replace(/(at \.\.\.\s*)+/g, "at ...\n").to(file) # minify exception stack traces

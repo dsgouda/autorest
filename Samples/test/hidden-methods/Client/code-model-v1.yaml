@@ -1,115 +1,143 @@
 ---
-apiVersion: 1.0.0
-baseUrl: 'https://localhost'
-documentation: This is a sample.
+$id: '1'
 modelTypes:
-  - $id: '1'
+  - $id: '2'
     $type: CompositeType
-    containsConstantProperties: false
-    documentation: A cowbell.
-    name:
-      fixed: false
-      raw: Cowbell
     properties:
-      - $id: '2'
+      - $id: '3'
+        isReadOnly: false
+        realPath:
+          - id
         collectionFormat: none
         defaultValue:
+          $id: '4'
           fixed: false
           raw: '42'
+        deprecated: false
         documentation:
+          $id: '5'
           fixed: false
-        isConstant: false
-        isReadOnly: false
         isRequired: false
+        isConstant: false
+        name:
+          $id: '6'
+          fixed: false
+          raw: id
+        serializedName: id
         modelType:
-          $id: '3'
+          $id: '7'
           $type: PrimaryType
           format: int64
           knownPrimaryType: long
           name:
+            $id: '8'
             fixed: false
             raw: Long
-        name:
-          fixed: false
-          raw: id
+          deprecated: false
+      - $id: '9'
+        isReadOnly: false
         realPath:
-          - id
-        serializedName: id
-      - $id: '4'
+          - name
         collectionFormat: none
         defaultValue:
+          $id: '10'
           fixed: false
           raw: shiny
+        deprecated: false
         documentation:
+          $id: '11'
           fixed: false
-        isConstant: false
-        isReadOnly: false
         isRequired: true
+        isConstant: false
+        name:
+          $id: '12'
+          fixed: false
+          raw: name
+        serializedName: name
         modelType:
-          $id: '5'
+          $id: '13'
           $type: PrimaryType
           knownPrimaryType: string
           name:
+            $id: '14'
             fixed: false
             raw: String
-        name:
-          fixed: false
-          raw: name
-        realPath:
-          - name
-        serializedName: name
+          deprecated: false
     serializedName: Cowbell
-modelsName: Models
+    documentation: A cowbell.
+    containsConstantProperties: false
+    name:
+      $id: '15'
+      fixed: false
+      raw: Cowbell
+    deprecated: false
 name: CowbellFactory
 namespace: ''
+modelsName: Models
+apiVersion: 1.0.0
+baseUrl: 'https://localhost'
+documentation: This is a sample.
 operations:
-  - methods:
-      - defaultResponse:
-          isNullable: true
-        deprecated: false
-        description: A good description.
-        extensions:
-          x-ms-requestBody-index: '0'
-        group:
-          fixed: false
-          raw: Cowbell
-        hidden: false
-        httpMethod: post
-        isAbsoluteUrl: false
-        name:
-          fixed: false
-          raw: Add
+  - $id: '16'
+    methods:
+      - $id: '17'
         parameters:
-          - $id: '6'
+          - $id: '18'
+            location: body
             collectionFormat: none
             defaultValue:
+              $id: '19'
               fixed: false
+            deprecated: false
             documentation:
+              $id: '20'
               fixed: false
             extensions:
               x-ms-requestBody-name: body
-            isConstant: false
             isRequired: true
-            location: body
-            modelType:
-              $ref: '1'
+            isConstant: false
             name:
+              $id: '21'
               fixed: false
               raw: body
             serializedName: body
+            modelType:
+              $ref: '2'
+        name:
+          $id: '22'
+          fixed: false
+          raw: Add
+        group:
+          $id: '23'
+          fixed: false
+          raw: Cowbell
+        serializedName: Cowbell_Add
+        url: /cowbell
+        isAbsoluteUrl: false
+        httpMethod: post
+        responses:
+          OK:
+            $id: '24'
+            isNullable: true
+        defaultResponse:
+          $id: '25'
+          isNullable: true
+        returnType:
+          $id: '26'
+          isNullable: true
+        description: A good description.
         requestContentType: application/json; charset=utf-8
         responseContentTypes:
           - application/json
-        responses:
-          OK:
-            isNullable: true
-        returnType:
-          isNullable: true
-        serializedName: Cowbell_Add
-        url: /cowbell
+        extensions:
+          x-ms-requestBody-index: '0'
+        deprecated: false
+        hidden: false
     name:
+      $id: '27'
       fixed: false
       raw: Cowbell
-    nameForProperty: Cowbell
     typeName:
+      $id: '28'
       fixed: false
+    nameForProperty: Cowbell

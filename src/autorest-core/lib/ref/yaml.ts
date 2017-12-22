@@ -167,6 +167,9 @@ function ParseNodeInternal(yamlRootNode: YAMLNode, yamlNode: YAMLNode, onError: 
 
 export function ParseNode<T>(yamlNode: YAMLNode, onError: (message: string, index: number) => void = message => { throw new Error(message); }): T {
   ParseNodeInternal(yamlNode, yamlNode, onError);
+  if (!yamlNode) {
+    return (undefined) as any;
+  }
   return (yamlNode as any).valueFunc(new WeakMap());
 }
 
@@ -181,6 +184,7 @@ export function StringifyAst(ast: YAMLNode): string {
   return FastStringify(ParseNode<any>(ast));
 }
 export function Clone<T>(object: T): T {
+  if (object === undefined) return object;
   return Parse<T>(FastStringify(object));
 }
 

@@ -1,15 +1,42 @@
 #!/usr/bin/env node
-// load static module: ${__dirname }/static_modules.fs
-require('./static-loader.js').load(`${__dirname}/static_modules.fs`)
+// load modules from static linker filesystem.
+if (process.argv.indexOf("--no-static-loader") === -1 && process.env["no-static-loader"] === undefined) {
+  require('./static-loader.js').load(`${__dirname}/static_modules.fs`)
+}
 
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// https://github.com/uxitten/polyfill/blob/master/string.polyfill.js
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padEnd
+if (!String.prototype.padEnd) {
+  String.prototype.padEnd = function padEnd(targetLength, padString) {
+    targetLength = targetLength >> 0; //floor if number or convert non-number to 0;
+    padString = String(padString || ' ');
+    if (this.length > targetLength) {
+      return String(this);
+    }
+    else {
+      targetLength = targetLength - this.length;
+      if (targetLength > padString.length) {
+        padString += padString.repeat(targetLength / padString.length); //append to original to ensure we are longer than needed
+      }
+      return String(this) + padString.slice(0, targetLength);
+    }
+  };
+}
+
 require('events').EventEmitter.defaultMaxListeners = 100;
 process.env['ELECTRON_RUN_AS_NODE'] = "1";
 delete process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+
+process.on("exit", () => {
+  Shutdown()
+});
+
+const color: (text: string) => string = (<any>global).color ? (<any>global).color : p => p;
 
 // start of autorest-ng
 // the console app starts for real here.
@@ -19,22 +46,27 @@ import { AutoRestConfigurationImpl, MergeConfigurations } from './lib/configurat
 import { Parse, Stringify } from "./lib/ref/yaml";
 import { CreateObject, nodes } from "./lib/ref/jsonpath";
 import { OutstandingTaskAwaiter } from "./lib/outstanding-task-awaiter";
-import { AutoRest, ConfigurationView, IsOpenApiDocument } from './lib/autorest-core';
+import { AutoRest, ConfigurationView, IsOpenApiDocument, Shutdown } from './lib/autorest-core';
 import { ShallowCopy } from "./lib/source-map/merging";
 import { Message, Channel } from "./lib/message";
-import { resolve as currentDirectory } from "path";
+import { join, resolve as currentDirectory } from "path";
 import { ChildProcess } from "child_process";
 import { CreateFolderUri, MakeRelativeUri, ReadUri, ResolveUri, WriteString, ClearFolder } from "./lib/ref/uri";
 import { isLegacy, CreateConfiguration } from "./legacyCli";
 import { DataStore } from "./lib/data-store/data-store";
 import { EnhancedFileSystem, RealFileSystem } from './lib/file-system';
 import { Exception, OperationCanceledException } from "./lib/exception";
+import { Help } from "./help";
 
 function awaitable(child: ChildProcess): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     child.addListener("error", reject);
     child.addListener("exit", resolve);
   });
+}
+
+async function showHelp(): Promise<void> {
+  await currentMain(["--help"]);
 }
 
 async function legacyMain(autorestArgs: string[]): Promise<number> {
@@ -45,15 +77,16 @@ async function legacyMain(autorestArgs: string[]): Promise<number> {
   try {
     config = await CreateConfiguration(currentDirUri, dataStore.GetReadThroughScope(new RealFileSystem()), autorestArgs);
   } catch (e) {
-    console.error("Error: You have provided legacy command line arguments (single-dash syntax) that seem broken.");
+    console.error(color("!Error: You have provided legacy command line arguments (single-dash syntax) that seem broken."));
     console.error("");
-    console.error(
-      "While AutoRest keeps on supporting the old CLI by converting it over to the new one internally, " +
-      "it does not have crazy logic determining *what* is wrong with arguments, should conversion fail. " +
-      "Please try fixing your arguments or consider moving to the new CLI. " +
-      "Visit https://github.com/Azure/autorest/blob/master/docs/user/cli.md for information about the new CLI.");
+    console.error(color(
+      "> While AutoRest keeps on supporting the old CLI by converting it over to the new one internally, \n" +
+      "> it does not have crazy logic determining *what* is wrong with arguments, should conversion fail. \n" +
+      "> Please try fixing your arguments or consider moving to the new CLI. \n" +
+      "> isit https://github.com/Azure/autorest/blob/master/docs/user/cli.md for information about the new CLI."));
     console.error("");
-    console.error("Internal error: " + e);
+    console.error(color("!Internal error: " + e));
+    await showHelp();
     return 1;
   }
 
@@ -136,7 +169,7 @@ function parseArgs(autorestArgs: string[]): CommandLineArgs {
   };
 
   for (const arg of autorestArgs) {
-    const match = /^--([^=]+)(=(.+))?$/g.exec(arg);
+    const match = /^--([^=:]+)([=:](.+))?$/g.exec(arg);
 
     // configuration file?
     if (match === null) {
@@ -150,6 +183,12 @@ function parseArgs(autorestArgs: string[]): CommandLineArgs {
     // switch
     const key = match[1];
     let rawValue = match[3] || "{}";
+
+    if (rawValue.startsWith('.')) {
+      // starts with a . or .. -> this is a relative path to current directory
+      rawValue = join(process.cwd(), rawValue);
+    }
+
     // quote stuff beginning with '@', YAML doesn't think unquoted strings should start with that
     rawValue = rawValue.startsWith('@') ? `'${rawValue}'` : rawValue;
     // quote numbers with decimal point, we don't have any use for non-integer numbers (while on the other hand version strings may look like decimal numbers)
@@ -167,15 +206,15 @@ function subscribeMessages(api: AutoRest, errorCounter: () => void) {
       case Channel.Debug:
       case Channel.Verbose:
       case Channel.Information:
-        console.log(m.FormattedMessage || m.Text);
+        console.log(color(m.FormattedMessage || m.Text));
         break;
       case Channel.Warning:
-        console.warn(m.FormattedMessage || m.Text);
+        console.log(color(m.FormattedMessage || m.Text));
         break;
       case Channel.Error:
       case Channel.Fatal:
         errorCounter();
-        console.error(m.FormattedMessage || m.Text);
+        console.error(color(m.FormattedMessage || m.Text));
         break;
     }
   });
@@ -267,6 +306,7 @@ async function currentMain(autorestArgs: string[]): Promise<number> {
   if (config["batch"]) {
     await batch(api);
   }
+
   else {
     const result = await api.Process().finish;
     if (result !== true) {
@@ -274,12 +314,47 @@ async function currentMain(autorestArgs: string[]): Promise<number> {
     }
   }
 
-  // perform file system operations.
-  for (const folder of clearFolders) {
-    try { await ClearFolder(folder); } catch (e) { }
-  }
-  for (const artifact of artifacts) {
-    await WriteString(artifact.uri, artifact.content);
+  if (config.HelpRequested) {
+    // no fs operations on --help! Instead, format and print artifacts to console.
+    // - print boilerplate help
+    console.log("");
+    console.log("");
+    console.log(color("**Usage**: autorest `[configuration-file.md] [...options]`"));
+    console.log("");
+    console.log(color("  See: https://aka.ms/autorest/cli for additional documentation"));
+    // - sort artifacts by name (then content, just for stability)
+    const helpArtifacts = artifacts.sort((a, b) => a.uri === b.uri ? (a.content > b.content ? 1 : -1) : (a.uri > b.uri ? 1 : -1));
+    // - format and print
+    for (const helpArtifact of helpArtifacts) {
+      const help: Help = Parse(helpArtifact.content, (message, index) => console.error(color(`!Parsing error at **${helpArtifact.uri}**:__${index}: ${message}__`)));
+      if (!help) {
+        continue;
+      }
+      const activatedBySuffix = help.activationScope ? ` (activated by --${help.activationScope})` : "";
+      console.log("");
+      console.log(color(`### ${help.categoryFriendlyName}${activatedBySuffix}`));
+      if (help.description) {
+        console.log(color(help.description));
+      }
+      console.log("");
+      for (const settingHelp of help.settings) {
+        const keyPart = `--${settingHelp.key}`;
+        const typePart = settingHelp.type ? `=<${settingHelp.type}>` : ` `;//`[=<boolean>]`;
+        let settingPart = `${keyPart}\`${typePart}\``;
+        // if (!settingHelp.required) {
+        //   settingPart = `[${settingPart}]`;
+        // }
+        console.log(color(`  ${settingPart.padEnd(30)}  **${settingHelp.description}**`));
+      }
+    }
+  } else {
+    // perform file system operations.
+    for (const folder of clearFolders) {
+      try { await ClearFolder(folder); } catch (e) { }
+    }
+    for (const artifact of artifacts) {
+      await WriteString(artifact.uri, artifact.content);
+    }
   }
 
   // return the exit code to the caller.
@@ -292,7 +367,7 @@ function shallowMerge(existing: any, more: any) {
       const value = more[key];
       if (value !== undefined) {
         /* if (existing[key]) {
-          Console.Log(`> Warning: ${key} is overwritten.`);
+          Console.Log(color(`> Warning: ${key} is overwritten.`));
         } */
         existing[key] = value;
       }
@@ -336,7 +411,7 @@ async function resourceSchemaBatch(api: AutoRest): Promise<number> {
       const content = await ReadUri(path);
       if (!await IsOpenApiDocument(content)) {
         exitcode++;
-        console.error(`File ${path} is not a OpenAPI file.`);
+        console.error(color(`!File ${path} is not a OpenAPI file.`));
         continue;
       }
 
@@ -430,18 +505,12 @@ async function main() {
 
     autorestArgs = process.argv.slice(2);
 
-    // temporary: --help displays legacy AutoRest's -Help message
-    if (autorestArgs.indexOf("--help") !== -1) {
-      await legacyMain(["-Help"]);
-      return;
-    }
-
     if (isLegacy(autorestArgs)) {
       exitcode = await legacyMain(autorestArgs);
     } else {
       exitcode = await currentMain(autorestArgs);
     }
-
+    await Shutdown();
     process.exit(exitcode);
   } catch (e) {
     // be very careful about the following check:
@@ -452,12 +521,14 @@ async function main() {
       } else {
         console.log(e.message);
       }
+      await Shutdown();
       process.exit(e.exitCode);
     }
 
     if (e !== false) {
-      console.error(e);
+      console.error(color(`!${e}`));
     }
+    await Shutdown();
     process.exit(1);
   }
 }

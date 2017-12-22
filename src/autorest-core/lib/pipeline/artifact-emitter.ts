@@ -1,3 +1,4 @@
+import { Artifact } from '../../main';
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -16,10 +17,22 @@ function IsOutputArtifactOrMapRequested(config: ConfigurationView, artifactType:
 
 async function EmitArtifactInternal(config: ConfigurationView, artifactType: string, uri: string, handle: DataHandle): Promise<void> {
   config.Message({ Channel: Channel.Debug, Text: `Emitting '${artifactType}' at ${uri}` });
+  const emitArtifact = (artifact: Artifact): void => {
+    if (artifact.uri.startsWith("stdout://")) {
+      config.Message({
+        Channel: Channel.Information,
+        Details: artifact,
+        Text: `Artifact '${artifact.uri.slice("stdout://".length)}' of type '${artifact.type}' has been emitted.`,
+        Plugin: "emitter"
+      });
+    } else {
+      config.GeneratedFile.Dispatch(artifact);
+    }
+  }
   if (config.IsOutputArtifactRequested(artifactType)) {
     const content = handle.ReadData();
     if (content !== "") {
-      config.GeneratedFile.Dispatch({
+      emitArtifact({
         type: artifactType,
         uri: uri,
         content: content
@@ -27,7 +40,7 @@ async function EmitArtifactInternal(config: ConfigurationView, artifactType: str
     }
   }
   if (config.IsOutputArtifactRequested(artifactType + ".map")) {
-    config.GeneratedFile.Dispatch({
+    emitArtifact({
       type: artifactType + ".map",
       uri: uri + ".map",
       content: JSON.stringify(handle.ReadMetadata().inputSourceMap.Value, null, 2)
@@ -44,12 +57,20 @@ async function EmitArtifact(config: ConfigurationView, artifactType: string, uri
     const ast = new Lazy<YAMLNode>(() => handle.ReadYamlAst());
 
     if (IsOutputArtifactOrMapRequested(config, artifactType + ".yaml")) {
-      const h = await sink.WriteData(`${++emitCtr}.yaml`, Stringify(Normalize(object.Value)), IdentitySourceMapping(handle.key, ast.Value), [handle]);
+      const h = await sink.WriteData(`${++emitCtr}.yaml`, Stringify(object.Value), IdentitySourceMapping(handle.key, ast.Value), [handle]);
       await EmitArtifactInternal(config, artifactType + ".yaml", uri + ".yaml", h);
     }
+    if (IsOutputArtifactOrMapRequested(config, artifactType + ".norm.yaml")) {
+      const h = await sink.WriteData(`${++emitCtr}.norm.yaml`, Stringify(Normalize(object.Value)), IdentitySourceMapping(handle.key, ast.Value), [handle]);
+      await EmitArtifactInternal(config, artifactType + ".norm.yaml", uri + ".norm.yaml", h);
+    }
     if (IsOutputArtifactOrMapRequested(config, artifactType + ".json")) {
-      const h = await sink.WriteData(`${++emitCtr}.json`, JSON.stringify(Normalize(object.Value), null, 2), IdentitySourceMapping(handle.key, ast.Value), [handle]);
+      const h = await sink.WriteData(`${++emitCtr}.json`, JSON.stringify(object.Value, null, 2), IdentitySourceMapping(handle.key, ast.Value), [handle]);
       await EmitArtifactInternal(config, artifactType + ".json", uri + ".json", h);
+    }
+    if (IsOutputArtifactOrMapRequested(config, artifactType + ".norm.json")) {
+      const h = await sink.WriteData(`${++emitCtr}.norm.json`, JSON.stringify(Normalize(object.Value), null, 2), IdentitySourceMapping(handle.key, ast.Value), [handle]);
+      await EmitArtifactInternal(config, artifactType + ".norm.json", uri + ".norm.json", h);
     }
   }
 }
