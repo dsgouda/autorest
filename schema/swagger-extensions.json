@@ -385,7 +385,7 @@
     "response": {
       "x-ms-error-response": {
         "$ref": "#/definitions/xmsErrorResponse"
-      }
+      },
       "type": "object",
       "required": [
         "description"
