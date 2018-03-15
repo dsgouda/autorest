@@ -1107,9 +1107,6 @@
       "properties": {
         "x-ms-client-flatten": {
           "$ref": "#/definitions/xmsClientFlatten"
-        },
-        "$ref": {
-          "type": "string"
         }
       }
     },
@@ -1562,6 +1559,9 @@
       "additionalProperties": false,
       "properties": {
         "$ref": {
+          "type": "string"
+        },
+        "description": {
           "type": "string"
         }
       }
